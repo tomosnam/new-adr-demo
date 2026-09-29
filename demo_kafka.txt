@@ -1,0 +1,22 @@
+/new-adr Use Kafka for events between Policy and Billing.
+1. Context / problem: When a policy is issued, endorsed or cancelled, the Policy service calls Billing synchronously over REST to create or adjust invoices. If Billing is slow or down, policy issuance fails or times out, and during month-end batch runs we see retries that create duplicate invoices. Policy and Billing are owned by different teams and deploy on different schedules, so every API change requires coordination.
+
+2. Options considered:
+   a) Keep synchronous REST, adding retries and a circuit breaker
+   b) Kafka events: Policy publishes PolicyIssued, PolicyEndorsed and PolicyCancelled; Billing consumes them
+   c) AWS SQS/SNS queues
+   d) Shared database table that Billing polls
+
+3. Chosen option: Kafka, because:
+   - Decoupling: policy issuance no longer depends on Billing being available
+   - Replay: Billing can reprocess events after a bug fix or outage
+   - Auditability: the event log gives a history of every policy change, useful for regulatory reviews
+   - Kafka is already running in our platform, so no new infrastructure
+   Trade-offs we accept: eventual consistency (an invoice may appear seconds after issuance), and Billing must handle duplicate events idempotently using the event ID.
+
+4. Decision-makers and consulted:
+   - Decision-maker: Laura Mendez (Solutions Architect)
+   - Consulted: Diego Ramirez (Billing Tech Lead), Ana Torres (Platform Team, Kafka owner)
+   - Informed: Policy team, Billing team, QA
+
+The reasons in point 3 were confirmed by Diego Ramirez today. The duplicate invoice problem in point 1 is my own observation and hasn't been confirmed by the business yet.

@@ -1,0 +1,22 @@
+/new-adr Use Redis cache for premium rating results
+
+1. Context / problem: The Quote service calls the Rating Engine for every quote request to calculate the premium. The Rating Engine is a legacy system with slow responses, especially during peak hours when brokers request many quotes for the same vehicle and coverage combinations. The Rating Engine has a license cost per call, so repeated identical requests cost money without adding value.
+
+2. Options considered:
+   a) Keep calling the Rating Engine every time
+   b) In-memory cache inside each Quote service instance (Caffeine)
+   c) Distributed cache with Redis, shared by all instances
+   d) Precompute premiums for common combinations in a nightly batch
+
+3. Chosen option: Redis, because:
+   - All Quote service instances share the same cache, so the hit rate is higher than with a local cache
+   - It reduces the number of paid calls to the Rating Engine
+   - Brokers get faster quotes for repeated requests
+   Trade-offs we accept: a cached premium may be outdated if rating tables change, so every entry gets a TTL and the whole cache is invalidated when a new rating table is published. Redis becomes a new dependency: if it's down, the service falls back to calling the Rating Engine directly.
+
+4. Decision-makers and consulted:
+   - Decision-maker: Laura Mendez (Solutions Architect)
+   - Consulted: Carlos Vega (Rating Engine Product Owner), Ana Torres (Platform Team)
+   - Informed: Quote team, Broker Portal team
+
+Carlos Vega confirmed today that rating tables change at most once a month and that a new version is always announced before release. The "license cost per call" in point 1 comes from an old wiki page and might be outdated. I haven't decided the TTL value yet.
