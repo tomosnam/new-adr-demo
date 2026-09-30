@@ -3,3 +3,11 @@
 .DS_Store
 .AppleDouble
 .LSOverride
+
+### IntelliJ ###
+.idea
+
+
+skill-registry.md
+CLAUDE.md
+.skill-registry.cache.json

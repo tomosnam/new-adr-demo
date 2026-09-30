@@ -1,0 +1,216 @@
+# Rol y objetivo
+
+Actúa como arquitecto de software y experto en Claude Code. Trabajas en el workspace
+`chubb-latam-ai-adoption`, que contiene estos repos hermanos:
+- chubb-latam-andes-architecture (fuente canónica: ADRs, process contracts, templates)
+- chubb-latam-andes-sdlc (harness: orquestador Python, comandos, templates, gates)
+- chubb-latam-andes-platform-docs (sitio Docusaurus del framework)
+- chubb-latam-onehub-docs y chubb-latam-pipeline-documentation (documentación de plataformas)
+
+OBJETIVO: analizar y DISEÑAR (todavía NO implementar) un comando de Claude Code
+(skill / slash command) para revisar y etiquetar documentación. El diseño debe cumplir
+con la arquitectura ANDES y con las definiciones de los ADRs y process contracts de
+chubb-latam-andes-architecture.
+
+# Reglas de trabajo
+
+1. SOLO LECTURA. No modifiques archivos existentes. No hagas commit, push ni crees ramas.
+   El único archivo que puedes crear es el reporte final. Antes de crearlo, pregúntame en
+   qué ruta guardarlo; sugiere una ruta fuera de los repos o ignorada por git.
+2. Cita cada hallazgo con archivo y sección o línea.
+3. Etiqueta cada afirmación como:
+   - [HECHO]: leído en un archivo
+   - [INFERENCIA]: deducción tuya
+   - [PREGUNTA]: requiere decisión humana
+4. Si algo de este prompt contradice los archivos, los archivos ganan. Reporta la contradicción.
+5. Usa subagentes Explore para barridos amplios, para no saturar tu contexto.
+6. El reporte va en español. Cualquier borrador de artefacto del framework (PROC,
+   SKILL.md, ADR) va en inglés norteamericano, según DM-0003.
+
+# Contexto ya conocido (verifícalo, no lo asumas)
+
+## Arquitectura
+- chubb-latam-andes-architecture es la fuente canónica. Las ediciones se hacen ahí primero;
+  Confluence y Context Forge son downstream. Se propagan con el skill `sync-andes-docs`
+  (ver ECO-0006 y ECO-0014).
+- Según su README, en ese repo NO viven el código del framework ni los scaffolds de
+  herramientas:
+  - El código del framework vive en chubb-latam-andes-sdlc.
+  - Los scaffolds viven en chubb-latam-andes-ai-tools-scaffold (planeado).
+  → Un comando nuevo probablemente pertenece a uno de esos dos repos, no a architecture.
+- Hay dos niveles:
+  - Level 1: ADRs del propio framework, gobernados por GOV-0001.
+  - Level 2: metodología para plataformas adoptantes, gobernada por PDOC-0001.
+    Agrega `tags.layer` y `tags.scope`.
+- Las ADRs usan MADR (Markdown Any Decision Records) con el template `adr/_template.md`.
+- Los process contracts viven en `processes/` con el template `processes/_template.md`.
+  Ese template dice que los pasos detallados NO van en el PROC, sino en Confluence.
+
+## Metadatos (ECO-0009)
+- Fuente autoritativa legible por máquina: `adr/tag-registry.yml`. Índice humano: `adr/TAGS.md`.
+- Tags obligatorios: kind, series, audience, maturity. Opcional: domain (extensible).
+- `supersedes` y `superseded-by` van a nivel raíz del frontmatter, no dentro de `relations`.
+- `relations` tiene depends_on, blocks, related_to y extends. Todo ID debe resolver a un
+  artefacto existente, y cada relación debe explicarse en prosa en la sección Relations.
+- `status` aparece dos veces: en el frontmatter y en la sección `## Status` del cuerpo.
+- Posible inconsistencia a revisar: PDOC-0001 vive en `adr/processes/`, pero tiene
+  `series: platform-documentation`, y el template dice que series "coincide con la
+  carpeta". Hay 9 prefijos de serie y solo 5 carpetas en `adr/`.
+
+## PROC-0001 Documentation Review Campaign (status: active, v1.0.0, owner Rodolfo Garavito)
+- Alcance: revisión humana de drafts de documentación de plataformas, en el repo
+  Docusaurus de cada plataforma.
+- Fuera de alcance: los artefactos del framework en andes-architecture, que se revisan
+  por PR normal.
+- El estado vive en Jira y en `docs-state.yml`:
+  - un Epic por campaña,
+  - una Story por área,
+  - una Sub-task por archivo, con la ruta del archivo en la descripción.
+- Fases:
+  1. Backlog: el Orchestrator Agent crea el backlog.
+  2. Assignment: el Tech Lead asigna.
+  3. Concurrent Review: cada reviewer trabaja en su rama.
+  4. PR Merge / Indexing: el Tech Lead mergea y el Orchestrator indexa en Context Forge por Story.
+- Rama: `review/{reviewer}/{area}-{YYYY-MM-DD}`. Regla: un archivo = un reviewer = una rama.
+- Al aprobar un documento:
+  - `status: Published`
+  - se actualiza `last_modified`
+  - `source` pasa de AI_INFERENCE a BUSINESS_EXPERT (YYYY-MM-DD), según DM-0001
+- Otros resultados posibles: pedir rework (el agente refina el documento) o "Needs Discussion".
+- Gates:
+  1. Backlog Complete
+  2. Assignment Complete (owner: Tech Lead)
+  3. Document Approved (owner: Reviewer)
+  4. PR Approved (owner: Tech Lead)
+  5. Story Complete → indexación incremental
+  6. Epic Complete
+- Métricas: tiempo a primera aprobación ≤ 5 días hábiles, tasa de rework ≤ 30%,
+  cero conflictos de merge, balance de carga entre reviewers.
+- La guía paso a paso vive en Confluence (Sección 3, "Manual Review Process") y en
+  `diagrams/04-proceso-revision-manual-documentacion.mmd`.
+
+## Propuesta de Carlos Tinoco (15 pasos, resumen)
+1. El usuario ejecuta el comando y da su LanId y nombre.
+2. Se verifica que exista la documentación de apoyo (ADRs, etc.).
+3–4. Se confirma que la rama sea la correcta; si no, se actualiza.
+5. Si no existe un inventario en revisión, se obliga a crearlo. Se puede elegir revisar un solo objeto.
+6. Se pregunta: ¿asignar revisiones o ejecutar una revisión?
+7–9. Asignar: menú para listar todos, sin revisor o por nombre; seleccionar por índice;
+     capturar el LanId obligatorio.
+10. Ejecutar: se listan los archivos asignados al LanId (columna reviewer del inventory)
+    y el usuario elige uno.
+11. Se cargan las reglas. Se muestra un resumen del estado del documento, sus secciones
+    y sus tags. Las violaciones (por ejemplo YAML inválido) son prioritarias.
+12. Cada modificación se valida contra las reglas y la confirma el usuario. No se
+    permiten cambios que violen reglas.
+13. Se aplican los cambios. Hay un log único por sesión y archivo, actualizado en cada
+    confirmación. Se notifica el estado general tras cada cambio.
+14. Continuar o volver al menú.
+15. Al cerrar la revisión de un archivo, commit a la rama.
+Extra: si el estado es "Listo para Context Forge", se pregunta si subirlo; al confirmar,
+pasa a estado final. Antes de subir se actualizan la rama de trabajo y main. Los cambios
+de auditoría se reflejan automáticamente en el documento de auditoría.
+
+## Conflictos ya detectados entre Carlos y PROC-0001
+- CONFLICTO: en Carlos cualquiera asigna; en PROC-0001 asigna el Tech Lead (Gate 2).
+- CONFLICTO: en Carlos el reviewer actualiza main y sube a Context Forge. En PROC-0001 el
+  Tech Lead aprueba el PR (Gate 4) y el Orchestrator indexa por Story (Gate 5).
+- DUPLICADO: el "inventory" de Carlos frente a Jira + `docs-state.yml`.
+- FALTANTE en Carlos:
+  - resultados de rework y "Needs Discussion",
+  - promoción de `source` según DM-0001,
+  - `status: Published`,
+  - `last_modified`.
+- NUEVO en Carlos, sin respaldo en PROC-0001:
+  - estado y tags por sección,
+  - log de sesión,
+  - documento de auditoría,
+  - estado "Listo para Context Forge".
+- IDENTIDAD: un LanId escrito a mano no es autenticación. En PROC-0001 la identidad es
+  el assignee de Jira.
+
+# Hechos técnicos de Claude Code (docs oficiales, sept 2026; verifícalos si puedes)
+- Los custom commands se fusionaron con los skills. `.claude/commands/x.md` sigue
+  funcionando, pero se prefiere `.claude/skills/x/SKILL.md`, que admite scripts y
+  archivos de soporte.
+- `disable-model-invocation: true` hace que solo el usuario pueda invocar el skill.
+- `allowed-tools` solo aplica al turno en que se invoca el skill. En un flujo interactivo
+  de varios turnos, los permisos de git y scripts deben ir en `.claude/settings.json`.
+- El SKILL.md no se relee en turnos posteriores. Tras la compactación de contexto solo se
+  conservan sus primeros ~5,000 tokens. Hay que mantenerlo corto y mover las reglas a
+  archivos de soporte.
+- Los hooks (PreToolUse / PostToolUse) pueden declararse en el frontmatter del skill y
+  aplican reglas de forma determinista, no solo como sugerencia.
+- Existe `${CLAUDE_SESSION_ID}` para identificar logs por sesión.
+- En Windows, `shell: powershell` evita depender de Git Bash. Scripts en Python evitan
+  el problema en ambos casos.
+
+# Tareas
+
+1. LEE Y RESUME (con citas):
+   - DM-0001, DM-0002, DM-0003, DM-0004, DM-0007, DM-0008
+   - DM-0009-ai-documentation-review-methodology
+   - PROTOCOL-coherence-review.md
+   - ECO-0004, ECO-0005, ECO-0006, ECO-0009, ECO-0014
+   - GOV-0001, PDOC-0001, PDOC-0007, JR-0007
+   - PROC-0001 y PROC-0002
+   - adr/tag-registry.yml y adr/TAGS.md
+   - diagrams/04-proceso-revision-manual-documentacion.mmd
+   - CONTEXT.md y HANDOFF.md
+   Si algún archivo no existe, dilo.
+
+2. INVENTARIO DE LO EXISTENTE:
+   - Busca en todos los repos del workspace: `.claude/` (commands, skills, agents,
+     hooks, settings.json) y CLAUDE.md.
+   - Busca también:
+     - el Documentation Orchestrator Agent,
+     - el workflow `index-to-cf`,
+     - el esquema de `docs-state.yml`,
+     - cualquier validador de frontmatter existente.
+   - Responde: ¿ya existe algo que haga parte de esta revisión? ¿Dónde vive y cómo se
+     empaqueta, según ECO-0004?
+
+3. CATÁLOGO DE REGLAS. Una tabla con estas columnas:
+   | ID | Regla | ADR/sección fuente | Tipo (DETERMINISTA = script / JUICIO = Claude) | Cómo se valida | Severidad (bloqueante/advertencia) | ¿Aplica a Level 1, Level 2 o ambos? |
+
+4. MATRIZ DE ALINEACIÓN: cada paso de Carlos contra lo que dice PROC-0001 (y
+   DM-0009/PROTOCOL si aplica), con veredicto Alineado / Conflicto / Faltante / Nuevo
+   y la acción sugerida.
+
+5. DECISIONES ABIERTAS. Para cada una: opciones, pros y contras, tu recomendación, y
+   quién decide (Rodolfo = owner del framework).
+   Incluye como mínimo:
+   - repo destino del comando,
+   - un comando o varios (p. ej. /review-assign, /review-run, /review-status),
+   - fuente de estado (Jira vs docs-state.yml vs archivo propio),
+   - identidad del reviewer,
+   - si el tagging por sección se adopta y dónde se guarda,
+   - log de sesión vs changelog DM-0004 vs Jira,
+   - cómo se integra con el Orchestrator Agent y con `sync-andes-docs`,
+   - reviewer que edita y aprueba su propio cambio (four-eyes).
+
+6. PROPUESTA DE DISEÑO, todavía sin código:
+   - estructura de carpetas del skill,
+   - qué hace cada script,
+   - qué hooks usar,
+   - permisos,
+   - uso de Jira/Atlassian MCP,
+   - máquina de estados del documento,
+   - qué eventos registrar para calcular las métricas de PROC-0001,
+   - recuperación ante una sesión interrumpida,
+   - modo dry-run,
+   - cómo evaluarlo (serie EVAL, skill-creator o `claude plugin eval`).
+
+7. BORRADOR DE ENMIENDA a PROC-0001 (en inglés, formato `processes/_template.md`, con
+   subida de versión y entrada de Changelog). Solo para lo que el diseño agrega o cambia.
+   No edites el archivo real.
+
+8. RIESGOS Y PREGUNTAS para Rodolfo (owner), Carlos (harness/integraciones) y Raúl
+   (agentes especializados).
+
+# Entregable
+Un reporte markdown con las secciones 1 a 8, en ese orden.
+Al terminar, dame en el chat:
+- un resumen de 10 líneas,
+- las 5 decisiones más urgentes,
+- la lista de archivos que no encontraste.
